@@ -1,0 +1,18 @@
+arch = resnet50
+gpu_id = 0
+dset = office
+s_dset_path = data/list/office/webcam_31.txt
+t_dset_path = data/list/office/amazon_31.txt
+output_dir = log/office31
+workers = 1
+epochs = 40
+iters_per_epoch = 500
+print_freq = 100
+batch_size = 32
+lr = 0.01
+momentum = 0.9
+weight_decay = 0.001
+seed = 1
+lambda0 = 0.25
+MI = 0.1
+epoch = 00,  best_acc1 = 68.193, best_acc1 = 68.193

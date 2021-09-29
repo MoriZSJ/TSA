@@ -29,11 +29,13 @@ from lr_scheduler import LrScheduler
 from data_list_index import ImageList
 from Loss import *
 
+
 def get_current_time():
     time_stamp = time.time()
     local_time = time.localtime(time_stamp)
     str_time = time.strftime('%Y-%m-%d_%H-%M-%S', local_time)
     return str_time
+
 
 def main(args: argparse.Namespace, config):
     torch.multiprocessing.set_sharing_strategy('file_system')
@@ -60,12 +62,12 @@ def main(args: argparse.Namespace, config):
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize])
-            
+
     val_tranform = transforms.Compose([
-            ResizeImage(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize])
+        ResizeImage(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        normalize])
 
     train_source_dataset = ImageList(open(args.s_dset_path).readlines(), transform=train_transform)
     train_source_loader = DataLoader(train_source_dataset, batch_size=args.batch_size,
@@ -105,7 +107,6 @@ def main(args: argparse.Namespace, config):
         num_classes = 12
     classifier = ImageClassifier(backbone, num_classes).cuda()
     classifier_feature_dim = classifier.features_dim
-
 
     # define optimizer and lr scheduler
     all_parameters = classifier.get_parameters()
@@ -186,6 +187,10 @@ def main(args: argparse.Namespace, config):
         # remember the best top1 accuracy and checkpoint
         if acc1 > best_acc1:
             best_model = copy.deepcopy(classifier.state_dict())
+            # save model
+            classifier.load_state_dict(best_model)
+            torch.save(classifier, 'model.pkl')
+
         best_acc1 = max(acc1, best_acc1)
         print("epoch = {:02d},  acc1={:.3f}, best_acc1 = {:.3f}".format(epoch, acc1, best_acc1))
         config["out_file"].write("epoch = {:02d},  best_acc1 = {:.3f}, best_acc1 = {:.3f}".format(epoch, acc1, best_acc1) + '\n')
@@ -205,8 +210,9 @@ def main(args: argparse.Namespace, config):
     config["out_file"].write("test_acc1 = {:.3f}".format(acc1) + '\n')
     config["out_file"].flush()
 
+
 def train(train_source_iter: ContinuousDataloader, train_target_iter: ContinuousDataloader, model: ImageClassifier,
-        optimizer: SGD, lr_sheduler: LrScheduler, epoch: int, args: argparse.Namespace, cls_criterion, memory_source_features,
+          optimizer: SGD, lr_sheduler: LrScheduler, epoch: int, args: argparse.Namespace, cls_criterion, memory_source_features,
           memory_source_labels, memory_target_features, memory_target_labels):
     # switch to train mode
     model.train()
@@ -218,7 +224,7 @@ def train(train_source_iter: ContinuousDataloader, train_target_iter: Continuous
         lr_sheduler.step()
 
         x_s, labels_s, idx_source = next(train_source_iter)
-        x_t, _ , idx_target = next(train_target_iter)
+        x_t, _, idx_target = next(train_target_iter)
 
         x_s = x_s.cuda()
         x_t = x_t.cuda()
@@ -253,8 +259,9 @@ def train(train_source_iter: ContinuousDataloader, train_target_iter: Continuous
 
         # print training log
         if i % args.print_freq == 0:
-            print("Epoch: [{:02d}][{}/{}]	total_loss:{:.3f}	cls_loss:{:.3f}	 MI_loss:{:.3f}".format(\
+            print("Epoch: [{:02d}][{}/{}]	total_loss:{:.3f}	cls_loss:{:.3f}	 MI_loss:{:.3f}".format(
                 epoch, i, args.iters_per_epoch, total_loss, cls_loss, MI_loss))
+
 
 def validate(val_loader: DataLoader, model: ImageClassifier, args: argparse.Namespace) -> float:
     # switch to evaluate mode
@@ -280,8 +287,9 @@ def validate(val_loader: DataLoader, model: ImageClassifier, args: argparse.Name
         print(' accuracy:{:.3f}'.format(accuracy))
     return accuracy
 
+
 def validate_visda(val_loader, model, epoch, config):
-    dict = {0: "plane", 1: "bcybl", 2: "bus", 3: "car", 4: "horse", 5: "knife", 6: "mcyle", 7: "person", 8: "plant", \
+    dict = {0: "plane", 1: "bcybl", 2: "bus", 3: "car", 4: "horse", 5: "knife", 6: "mcyle", 7: "person", 8: "plant",
             9: "sktb", 10: "train", 11: "truck"}
     model.eval()
     with torch.no_grad():
@@ -314,6 +322,7 @@ def validate_visda(val_loader, model, epoch, config):
         config["out_file"].flush()
     return avg
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Transferable Semantic Augmentation for Domain Adaptation')
     parser.add_argument('--arch', type=str, default='resnet50', choices=['resnet50', 'resnet101'])
@@ -322,7 +331,7 @@ if __name__ == '__main__':
     parser.add_argument('--s_dset_path', type=str, default='/data1/TL/data/list/office/webcam_31.txt', help="The source dataset path list")
     parser.add_argument('--t_dset_path', type=str, default='/data1/TL/data/list/office/amazon_31.txt', help="The target dataset path list")
     parser.add_argument('--output_dir', type=str, default='log/office31', help="output directory of logs")
-    parser.add_argument('--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
+    parser.add_argument('--workers', default=0, type=int, metavar='N', help='number of data loading workers (default: 4)')
     parser.add_argument('--epochs', default=40, type=int, metavar='N', help='number of total epochs to run')
     parser.add_argument('--iters-per-epoch', default=500, type=int, help='Number of iterations per epoch')
     parser.add_argument('--print-freq', default=100, type=int, metavar='N', help='print frequency (default: 100)')
@@ -339,7 +348,7 @@ if __name__ == '__main__':
     if not osp.exists(args.output_dir):
         os.makedirs(args.output_dir)
     task = args.s_dset_path.split('/')[-1].split('.')[0].split('_')[0] + "-" + \
-           args.t_dset_path.split('/')[-1].split('.')[0].split('_')[0]
+        args.t_dset_path.split('/')[-1].split('.')[0].split('_')[0]
     config["out_file"] = open(osp.join(args.output_dir, get_current_time() + "_" + task + "_log.txt"), "w")
 
     for arg in vars(args):
